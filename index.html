@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #accelerator, #brake {
+            position: fixed;
+            width: 80px;
+            height: 80px;
+            opacity: 0.5;
+        }
+        #accelerator { bottom: 20px; right: 20px; }
+        #brake { bottom: 20px; left: 20px; }
+    </style>
+</head>
+<body>
+    <div id="accelerator">⏩</div>
+    <div id="brake">⏪</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+<script>
+// Initialize scene
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Cel-shading setup
+const outlineMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x000000,
+    side: THREE.BackSide
+});
+
+// Create Bahrain track (simplified)
+function createTrack() {
+    const trackGeometry = new THREE.BoxGeometry(50, 1, 5);
+    const trackMaterial = new THREE.MeshPhongMaterial({
+        color: 0x444444,
+        shininess: 0
+    });
+    const track = new THREE.Mesh(trackGeometry, trackMaterial);
+    scene.add(track);
+}
+
+// Car setup
+function createCar() {
+    const carGeometry = new THREE.BoxGeometry(2, 1, 4);
+    const carMaterial = new THREE.MeshToonMaterial({
+        color: 0xFF0000,
+        gradientMap: null
+    });
+    
+    const car = new THREE.Mesh(carGeometry, carMaterial);
+    car.castShadow = true;
+    car.receiveShadow = true;
+    
+    // Add outline
+    const outline = new THREE.Mesh(carGeometry, outlineMaterial);
+    outline.scale.set(1.1, 1.1, 1.1);
+    car.add(outline);
+    
+    return car;
+}
+
+// Physics setup
+const world = new CANNON.World();
+world.gravity.set(0, -9.82, 0);
+
+// Car physics
+const carBody = new CANNON.Body({
+    mass: 700,
+    position: new CANNON.Vec3(0, 1, 0)
+});
+carBody.addShape(new CANNON.Box(new CANNON.Vec3(1, 0.5, 2)));
+world.addBody(carBody);
+
+// Controls
+let accelerate = false;
+let brake = false;
+let beta = 0; // Device tilt
+
+document.getElementById('accelerator').addEventListener('touchstart', () => accelerate = true);
+document.getElementById('accelerator').addEventListener('touchend', () => accelerate = false);
+document.getElementById('brake').addEventListener('touchstart', () => brake = true);
+document.getElementById('brake').addEventListener('touchend', () => brake = false);
+
+window.addEventListener('deviceorientation', (e) => {
+    beta = e.beta; // Tilt left/right
+});
+
+// Game loop
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Physics update
+    if(accelerate) carBody.applyForce(new CANNON.Vec3(0, 0, -1000), carBody.position);
+    if(brake) carBody.applyForce(new CANNON.Vec3(0, 0, 1000), carBody.position);
+    
+    // Steering
+    carBody.angularVelocity.set(0, beta * 0.1, 0);
+    
+    world.step(1/60);
+    
+    // Update car position
+    car.position.copy(carBody.position);
+    car.quaternion.copy(carBody.quaternion);
+    
+    renderer.render(scene, camera);
+}
+
+// Initial setup
+const car = createCar();
+scene.add(car);
+createTrack();
+camera.position.set(0, 10, -15);
+camera.lookAt(0, 0, 0);
+
+// Lighting
+const light = new THREE.DirectionalLight(0xFFFFFF, 1);
+light.position.set(0, 10, 0);
+scene.add(light);
+
+animate();
+</script>
+</body>
+</html>
